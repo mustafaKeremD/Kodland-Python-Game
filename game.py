@@ -5,25 +5,39 @@ import pgzrun
 
 WIDTH = 816
 HEIGHT = 624
-TOTAL_ENEMY_NUMBER = 8
+TOTAL_ENEMY_NUMBER = 6
+
+# Global variables which needed in more than one function across the code
+game_state = "menu"
+music_state = "on"
+buttons = {
+            "Start": Rect((298, 270), (200, 50)),
+            "Music on/off": Rect((298, 370), (200, 50)),
+            "Exit": Rect((298, 470), (200, 50)),
+          }
+
+
+enemy_entry_positions = [(0, HEIGHT/2), (WIDTH/2, 0), (WIDTH/2, HEIGHT), (WIDTH, HEIGHT/2)]
+enemy_types = ["flame", "bamboo"]
+enemies = []
+enemy_count = 0
 
 
 is_attacking = False
 attack_frame = 0
-attack_timer = 0  # frame'ler arası süreyi saymak için
-attack_frame_duration = 0.1  # saniye cinsinden
-attack_frames = [f"character/slash/frame_{i}" for i in range(4)]  # animasyon frameleri
+attack_timer = 0
+attack_frame_duration = 0.1
+attack_frames = [f"character/slash/frame_{i}" for i in range(4)]
+
+monsters_left = TOTAL_ENEMY_NUMBER
+
+player_current_frame = 0
+frame_timer = 0
+frame_delay = 8
+sounds.theme.play(-1)
 
 
-game_state = "menu"
-music_state = "on"
-buttons = {
-    "Start": Rect((298, 270), (200, 50)),
-    "Music on/off": Rect((298, 370), (200, 50)),
-    "Exit": Rect((298, 470), (200, 50)),
-}
-
-class player:
+class Player:
 
     def __init__(self):
         self.actor = Actor("character/idle/down/frame_0", (WIDTH/2, HEIGHT/2))
@@ -34,7 +48,7 @@ class player:
 
         self.lives = 3
 
-        self.attack_pos = (0,0)
+        self.attack_pos = (0, 0)
 
     def change_state(self, new_state):
         self.state = new_state
@@ -69,20 +83,19 @@ class player:
         if keyboard.space and not is_attacking:
             self.attack_pos = check_hit(p1, enemies)
             sounds.slash.play()
-     
+
             is_attacking = True
             attack_frame = 0
             attack_timer = 0
 
-
     def animate(self, current_frame):
 
        self.actor.image = f"character/{self.state}/{self.direction}/frame_{current_frame}"
-                
-            
+
+
 class Enemy:
-    
-    # 0 for live, 1 for dead 
+
+    # 0 for live, 1 for dead
     state = 0
     def __init__(self, kind, position, speed):
         self.animation_sprite = [f"enemies/{kind}/frame_{i}" for i in range(4)]
@@ -94,55 +107,58 @@ class Enemy:
 
     def move(self, target_x, target_y):
         if self.state == 0:
-            self.actor.x -= math.copysign(self.speed, (self.actor.x - target_x)) + random.randint(0, int(self.speed/2))
-            self.actor.y -= math.copysign(self.speed, (self.actor.y - target_y)) + random.randint(0, int(self.speed/2))
-  
+            self.actor.x -= (math.copysign(self.speed, (self.actor.x - target_x)) +
+                             random.randint(0, int(self.speed/2)))
+
+            self.actor.y -= (math.copysign(self.speed, (self.actor.y - target_y)) +
+                             random.randint(0, int(self.speed/2)))
+
 
 def check_collision(player, enemy_list):
+    global monsters_left
 
     for i in range(len(enemy_list)):
-        if (player.actor.colliderect(enemy_list[i].actor) and enemy_list[i].state == 0):           
+        if (player.actor.colliderect(enemy_list[i].actor)
+                and enemy_list[i].state == 0):
            player.lives -=1
            enemy_list[i].state = 1
+           monsters_left -=1
+
 
 def check_hit(player, enemy_list):
 
+    global monsters_left
+
     hit_range = 32
     x, y = player.actor.center
-    
+
     if p1.direction == "down":
         hit_point = (x, y + hit_range)
 
-                
     if p1.direction == "right":
         hit_point = (x + hit_range, y)
-    
+
     if p1.direction == "up":
         hit_point = (x, y - hit_range)
-    
+
     if p1.direction == "left":
         hit_point = (x - hit_range, y)
 
     for i in range(len(enemy_list)):
 
-        if (enemy_list[i].actor.collidepoint(hit_point) and enemy_list[i].state == 0):
-                enemy_list[i].state = 1
-                sounds.hit.play()
-    
+        if (enemy_list[i].actor.collidepoint(hit_point)
+                and enemy_list[i].state == 0):
+            enemy_list[i].state = 1
+            sounds.hit.play()
+            monsters_left -= 1
+
     return hit_point
 
 
 def change_game_state(new_state):
-    global game_state 
+    global game_state
     game_state = new_state
 
-#main
-p1 = player()
-
-enemy_entry_positions = [(0, HEIGHT/2), (WIDTH/2, 0), (WIDTH/2, HEIGHT), (WIDTH, HEIGHT/2)]
-enemy_types = ["flame", "bamboo"]
-enemies = []
-enemy_count = 0
 
 def spawn_enemy():
     global enemy_count
@@ -151,10 +167,9 @@ def spawn_enemy():
         enemy_count += 1
         clock.schedule_unique(spawn_enemy, random.randint(1, 5))
 
-player_current_frame = 0
-frame_timer = 0
-frame_delay = 8 
-sounds.theme.play(-1)
+
+p1 = Player()
+
 
 def update(dt):
     global player_current_frame, frame_timer, game_state
@@ -182,7 +197,7 @@ def update(dt):
             draw_game_screen()
             game_state = "lose"
 
-        if enemy_count == TOTAL_ENEMY_NUMBER:
+        if monsters_left == 0 and p1.lives != 0:
             draw_game_screen()
             game_state = "win"
 
@@ -192,38 +207,59 @@ def update(dt):
                 attack_timer = 0
                 attack_frame += 1
                 if attack_frame >= len(attack_frames):
-                    is_attacking = False  
+                    is_attacking = False
 
 
 def draw_game_screen():
+    global monsters_left
+
     screen.clear()
     screen.blit('map', (0, 0))
     p1.actor.draw()
-    
+
     for i in range(len(enemies)):
         if enemies[i].state == 0:
             enemies[i].actor.draw()
-    
+
     screen.draw.text(f"Lives : {p1.lives}", (50, 70), fontsize=50)
-    screen.draw.text(f"Monsters left : {TOTAL_ENEMY_NUMBER - enemy_count}", (500, 70), fontsize=50)
+    screen.draw.text(
+        f"Monsters left : {monsters_left}", (500, 70), fontsize=50)
 
     if is_attacking:
-        
-        screen.blit(attack_frames[attack_frame], (p1.attack_pos[0] - 32, p1.attack_pos[1] - 32) )
-    
+
+        screen.blit(
+            attack_frames[attack_frame],
+            (p1.attack_pos[0] - 32,
+             p1.attack_pos[1] - 32))
+
 
 def draw_menu_screen():
     screen.fill((27, 166, 154))
+
     screen.draw.text("THE GAME", center=(WIDTH // 2, 100), fontsize=80)
-    screen.draw.text("\"Arrow keys to move\"", center=(WIDTH // 2, 180), fontsize=50)
-    screen.draw.text("\"Space to attack\"", center=(WIDTH // 2, 230), fontsize=50)
+
+    screen.draw.text(
+        "\"Arrow keys to move\"",
+        center=(
+            WIDTH // 2,
+            180),
+        fontsize=50)
+    
+    screen.draw.text(
+        "\"Space to attack\"",
+        center=(
+            WIDTH // 2,
+            230),
+        fontsize=50)
 
     for name, rect in buttons.items():
         screen.draw.filled_rect(rect, "gray")
         screen.draw.text(name, center=rect.center, fontsize=30, color="white")
 
+
 def lose_screen():
     screen.draw.text("GAME OVER", center=(WIDTH // 2, HEIGHT/2), fontsize=80)
+
 
 def draw():
 
@@ -232,12 +268,22 @@ def draw():
 
     elif game_state == "game":
         draw_game_screen()
-    
+
     elif game_state == "lose":
-        screen.draw.text("GAME OVER", center=(WIDTH // 2, HEIGHT/2), fontsize=80)
-    
+        screen.draw.text(
+            "GAME OVER",
+            center=(
+                WIDTH // 2,
+                HEIGHT / 2),
+            fontsize=80)
+
     elif game_state == "win":
-        screen.draw.text("You won", center=(WIDTH // 2, HEIGHT/2), fontsize=80)
+        screen.draw.text(
+            "You won",
+            center=(
+                WIDTH // 2,
+                HEIGHT / 2),
+            fontsize=80)
 
 
 def on_mouse_down(pos):
@@ -268,4 +314,4 @@ def on_mouse_down(pos):
                     exit()
 
 
-pgzrun.go()              
+pgzrun.go()
