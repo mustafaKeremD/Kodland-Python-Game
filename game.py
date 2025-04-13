@@ -98,6 +98,7 @@ class Enemy:
 
     # 0 for live, 1 for dead
     state = 0
+
     def __init__(self, kind, position, speed):
         self.animation_sprite = [f"enemies/{kind}/frame_{i}" for i in range(4)]
         self.actor = Actor(self.animation_sprite[0], position)
@@ -135,6 +136,7 @@ def check_hit(player, enemy_list):
     hit_range = 32
     x, y = player.actor.center
 
+    #Calculate hit point according to actor position
     if player.direction == "down":
         hit_point = (x, y + hit_range)
 
@@ -165,6 +167,7 @@ def change_game_state(new_state):
 
 def spawn_enemy():
     global enemy_count
+
     #Appends a member of Enemy class with randomized type and spawn point
     #There is 4 possible spawn point declared in enemy_entry_positions
     if enemy_count < TOTAL_ENEMY_NUMBER:
@@ -249,7 +252,7 @@ def draw_game_screen():
 
 def draw_menu_screen():
     screen.fill((27, 166, 154))
-    screen.draw.text("THE GAME", center=(WIDTH // 2, 100), fontsize=80)
+    screen.draw.text("Beat The Monsters", center=(WIDTH // 2, 100), fontsize=80)
     screen.draw.text(
         "\"Arrow keys to move\"",
         center=(
